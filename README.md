@@ -1,91 +1,91 @@
-# Belajar Hyperledger Fabric — untuk Reviewer & Validator
+# Learning Hyperledger Fabric — for Reviewers & Validators
 
-Materi ini ditulis untuk **software engineer yang belum pernah menyentuh blockchain**, dan yang tugasnya nanti **bukan menulis chaincode dari nol**, melainkan **mendesain, mengetes, dan memvalidasi** aplikasi supply chain berbasis Hyperledger Fabric.
+This material is written for a **software engineer who has never touched blockchain before**, whose job will **not be writing chaincode from scratch**, but rather **designing, testing, and validating** a supply-chain application built on Hyperledger Fabric.
 
-Karena itu porsinya beda dari tutorial biasa:
+That's why this differs from a typical tutorial:
 
-| Tutorial biasa | Materi ini |
+| Typical tutorial | This material |
 |---|---|
-| Fokus: cara nulis kode | Fokus: cara tahu kode itu **salah** |
-| Hafal API | Paham **kenapa** API-nya begitu |
-| "Hello world jalan!" | "Kenapa transaksi ini INVALID padahal responsenya sukses?" |
+| Focus: how to write code | Focus: how to tell code is **wrong** |
+| Memorize the API | Understand **why** the API works that way |
+| "Hello world runs!" | "Why is this transaction INVALID even though the response said success?" |
 
 ---
 
-## Peta belajar
+## Learning map
 
 ```
-                        MULAI DI SINI
+                        START HERE
                               |
         +---------------------+---------------------+
         |                                           |
-   [ FONDASI ]                                 (skip kalau
-        |                                       sudah paham)
+   [ FOUNDATIONS ]                              (skip if
+        |                                       you already know)
         v
-  01 Mental Model .............. Fabric itu apa, dan BUKAN apa
+  01 Mental Model ............... What Fabric is, and is NOT
         |
         v
-  02 Transaction Flow  <<<<  INTI. 80% bug ada di sini
+  02 Transaction Flow  <<<<  CORE. 80% of bugs live here
         |
         v
         +---------------+---------------+
         |               |               |
         v               v               v
-  03 Chaincode    04 Privasi Data   05 Identitas
-   (state,          (channel,        & Akses
+  03 Chaincode    04 Data Privacy   05 Identity
+   (state,          (channel,        & Access
     query,           private data,    (MSP, ABAC,
     event)           on/off-chain)    endorsement)
         |               |               |
         +---------------+---------------+
                         |
                         v
-              06 Lifecycle & Deploy ...... praktik: test-network
+              06 Lifecycle & Deploy ...... hands-on: test-network
                         |
                         v
-              07 Studi Kasus Supply Chain  <<< desain nyata
+              07 Supply Chain Case Study  <<< real-world design
                         |
                         v
-              08 Testing & Review .......  checklist harian Anda
+              08 Testing & Review .......  your daily checklist
 ```
 
 ---
 
-## Daftar isi
+## Table of contents
 
-| # | File | Isi | Waktu |
+| # | File | Contents | Time |
 |---|------|-----|-------|
-| 01 | [01-mental-model.md](01-mental-model.md) | Fabric itu apa, arsitektur, komponen, kapan TIDAK butuh blockchain | ~45 mnt |
-| 02 | [02-transaction-flow.md](02-transaction-flow.md) | **Wajib.** Execute-Order-Validate, read/write set, MVCC, determinisme | ~90 mnt |
-| 03 | [03-chaincode.md](03-chaincode.md) | Anatomi chaincode, world state, composite key, query, event | ~60 mnt |
-| 04 | [04-privasi-data.md](04-privasi-data.md) | Channel, Private Data Collection, on-chain vs off-chain | ~45 mnt |
-| 05 | [05-identitas-akses.md](05-identitas-akses.md) | CA, MSP, wallet, ABAC, endorsement policy | ~60 mnt |
-| 06 | [06-lifecycle-deploy.md](06-lifecycle-deploy.md) | Deploy chaincode, upgrade, migrasi skema, baca log | ~60 mnt + praktik |
-| 07 | [07-studi-kasus-supply-chain.md](07-studi-kasus-supply-chain.md) | Desain end-to-end aplikasi supply chain | ~60 mnt |
-| 08 | [08-testing-dan-review.md](08-testing-dan-review.md) | Cara ngetes, skenario wajib, checklist review, tabel error | ~60 mnt |
+| 01 | [01-mental-model.md](01-mental-model.md) | What Fabric is, its architecture, components, when you DON'T need blockchain | ~45 min |
+| 02 | [02-transaction-flow.md](02-transaction-flow.md) | **Mandatory.** Execute-Order-Validate, read/write sets, MVCC, determinism | ~90 min |
+| 03 | [03-chaincode.md](03-chaincode.md) | Chaincode anatomy, world state, composite keys, queries, events | ~60 min |
+| 04 | [04-data-privacy.md](04-data-privacy.md) | Channels, Private Data Collections, on-chain vs off-chain | ~45 min |
+| 05 | [05-identity-access.md](05-identity-access.md) | CA, MSP, wallets, ABAC, endorsement policy | ~60 min |
+| 06 | [06-lifecycle-deploy.md](06-lifecycle-deploy.md) | Deploying chaincode, upgrades, schema migration, reading logs | ~60 min + hands-on |
+| 07 | [07-supply-chain-case-study.md](07-supply-chain-case-study.md) | End-to-end design of a supply-chain application | ~60 min |
+| 08 | [08-testing-and-review.md](08-testing-and-review.md) | How to test, required scenarios, review checklist, error table | ~60 min |
 
-Total ~7-8 jam baca + 1 hari praktik.
-
----
-
-## Cara pakai materi ini
-
-1. **Baca 01 dan 02 dulu, jangan loncat.** File 02 adalah kuncinya. Kalau Anda paham file 02, Anda sudah lebih paham Fabric daripada kebanyakan orang yang cuma ikut tutorial.
-2. **File 03-05 boleh dibaca sesuai kebutuhan.**
-3. **File 06 dikerjakan sambil buka terminal.** Jangan cuma dibaca.
-4. **File 08 dicetak/di-pin.** Itu checklist kerja harian Anda saat me-review kode dari AI agent.
-
-Di setiap file ada bagian **"Red flag saat review"** — itu bagian yang paling relevan buat pekerjaan Anda.
+Total: ~7-8 hours of reading + 1 day of hands-on practice.
 
 ---
 
-## Konvensi penulisan
+## How to use this material
 
-> 🔑 = konsep kunci, hafalkan
->
-> ⚠️ = jebakan umum, sering bikin bug
->
-> 🚩 = red flag saat review kode
->
-> 🧪 = sesuatu yang harus Anda tes
+1. **Read 01 and 02 first, don't skip ahead.** File 02 is the key. If you understand file 02, you already understand Fabric better than most people who just followed a tutorial.
+2. **Files 03-05 can be read as needed.**
+3. **File 06 is meant to be done, with a terminal open.** Don't just read it.
+4. **Print or pin file 08.** It's your daily working checklist when reviewing code from an AI agent.
 
-Versi Fabric yang diacu: **Fabric 2.5 LTS** (lifecycle v2, Gateway API).
+Every file has a **"Red flag when reviewing"** section — that's the part most directly relevant to your job.
+
+---
+
+## Notation used
+
+> 🔑 = key concept, memorize it
+>
+> ⚠️ = common trap, frequently causes bugs
+>
+> 🚩 = red flag when reviewing code
+>
+> 🧪 = something you must test
+
+Fabric version referenced throughout: **Fabric 2.5 LTS** (lifecycle v2, Gateway API).

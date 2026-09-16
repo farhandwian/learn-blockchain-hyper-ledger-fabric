@@ -1,160 +1,158 @@
-# 01 — Mental Model: Fabric itu Apa (dan Bukan Apa)
+# 01 — Mental Model: What Fabric Is (and Isn't)
 
-> Target: setelah baca ini, Anda bisa menjelaskan Fabric ke bos Anda dalam 2 menit tanpa menyebut kata "crypto".
-
----
-
-## 1.1 Analogi paling akurat
-
-Lupakan Bitcoin. Bayangkan begini:
-
-```
-   Anda punya 4 perusahaan yang harus kerja sama,
-   tapi tidak saling percaya 100%.
-
-   CARA LAMA:                          CARA FABRIC:
-
-   Supplier    [DB sendiri]            Supplier    ┐
-      | email/API                      Distributor ├─> [ SATU buku besar bersama ]
-   Distributor [DB sendiri]            Retailer    │      - tiap baris ditandatangani
-      | email/API                      Auditor     ┘      - tidak bisa diubah/dihapus
-   Retailer    [DB sendiri]                               - semua punya salinan
-      | laporan                                           - aturan ditegakkan otomatis
-   Auditor     [minta data ke semua]
-
-   Masalah: data beda-beda,             Masalah hilang: satu versi kebenaran,
-   saling tuduh, rekonsiliasi manual    riwayat lengkap, tidak bisa dibantah
-```
-
-**Definisi kerja:** Hyperledger Fabric adalah *database terdistribusi yang dimiliki bersama oleh beberapa organisasi, di mana setiap perubahan data harus disetujui (ditandatangani) oleh pihak-pihak yang disepakati, dan seluruh riwayat perubahan tersimpan permanen.*
-
-Itu saja. Tidak ada koin, tidak ada mining, tidak ada spekulasi.
+> Goal: after reading this, you should be able to explain Fabric to your boss in 2 minutes without saying the word "crypto".
 
 ---
 
-## 1.2 Fabric BUKAN Ethereum
+## 1.1 The most accurate analogy
 
-Ini penting karena 90% konten blockchain di internet membahas Ethereum, dan intuisinya **salah** kalau dipakai di Fabric.
+Forget Bitcoin. Picture this instead:
+
+```
+   You have 4 companies that need to work together,
+   but don't fully trust each other.
+
+   OLD WAY:                            FABRIC WAY:
+
+   Supplier    [own DB]                Supplier    ┐
+      | email/API                      Distributor ├─> [ ONE shared ledger ]
+   Distributor [own DB]                Retailer    │      - every entry is signed
+      | email/API                      Auditor     ┘      - can't be altered/deleted
+   Retailer    [own DB]                                    - everyone has a copy
+      | reports                                            - rules enforced automatically
+   Auditor     [asks everyone for data]
+
+   Problem: inconsistent data,          Problem gone: one source of truth,
+   finger-pointing, manual reconciling  full history, nothing deniable
+```
+
+**Working definition:** Hyperledger Fabric is *a distributed database jointly owned by multiple organizations, where every change to the data must be approved (signed) by an agreed-upon set of parties, and the entire history of changes is stored permanently.*
+
+That's it. No coin, no mining, no speculation.
+
+---
+
+## 1.2 Fabric is NOT Ethereum
+
+This matters because 90% of blockchain content online is about Ethereum, and that intuition is **wrong** when applied to Fabric.
 
 | | Ethereum / Bitcoin (public) | **Hyperledger Fabric** |
 |---|---|---|
-| Siapa boleh ikut | Siapa saja, anonim | Hanya org yang diundang, **identitas jelas** |
-| Konsensus | Proof of Work / Stake, kompetisi | **Raft** — ordering service, tidak ada kompetisi |
-| Biaya transaksi | Gas, bayar pakai token | **Tidak ada gas**, tidak ada token |
-| Bahasa smart contract | Solidity (bahasa khusus) | **Go / JavaScript / Java** biasa |
-| Data | Publik, semua orang lihat | **Privat**, per-channel, bisa per-org |
-| Urutan eksekusi | Order → Execute | **Execute → Order → Validate** ⬅ ini beda besar |
-| Throughput | ~15-30 TPS | ~500-2000 TPS (tergantung tuning) |
-| Finality | Probabilistik (tunggu N block) | **Deterministik** — commit = final |
+| Who can join | Anyone, anonymous | Only invited orgs, **clear identity** |
+| Consensus | Proof of Work / Stake, competitive | **Raft** — ordering service, no competition |
+| Transaction cost | Gas, paid in tokens | **No gas**, no tokens |
+| Smart contract language | Solidity (special-purpose) | Plain **Go / JavaScript / Java** |
+| Data | Public, everyone sees it | **Private**, per-channel, can be per-org |
+| Execution order | Order → Execute | **Execute → Order → Validate** ⬅ this is a big difference |
+| Throughput | ~15-30 TPS | ~500-2000 TPS (depending on tuning) |
+| Finality | Probabilistic (wait N blocks) | **Deterministic** — commit = final |
 
-> 🔑 Perbedaan yang paling berdampak ke kode Anda adalah baris **Execute → Order → Validate**. Itu isi file 02.
+> 🔑 The difference that impacts your code the most is the **Execute → Order → Validate** row. That's the whole subject of file 02.
 
 ---
 
-## 1.3 Kapan sebenarnya TIDAK butuh blockchain
+## 1.3 When you actually DON'T need blockchain
 
-Ini pertanyaan yang harus Anda bisa jawab, karena sering proyek dipaksakan pakai blockchain padahal Postgres cukup.
+This is a question you should be able to answer, because projects often get forced onto blockchain when Postgres would have been enough.
 
 ```
-       Apakah ada BANYAK PIHAK yang menulis data?
+       Do MULTIPLE PARTIES write the data?
                     |
-         TIDAK ─────+───── YA
+          NO ───────+───── YES
            |                |
            v                v
-     Pakai database   Apakah pihak-pihak itu saling percaya penuh?
-     biasa. Selesai.        |
-                    YA ─────+───── TIDAK
+     Use a regular    Do those parties fully trust each other?
+     database. Done.        |
+                    YES ────+──── NO
                      |              |
                      v              v
-             Pakai DB bersama   Apakah butuh audit trail yang
-             + API. Selesai.    tidak bisa dibantah / diubah?
+             Use a shared DB   Do you need an audit trail that
+             + API. Done.      can't be denied / altered?
                                        |
-                             TIDAK ────+──── YA
+                              NO ──────+──── YES
                                |             |
                                v             v
-                         DB + log biasa   ✅ FABRIC MASUK AKAL
+                        regular DB + log   ✅ FABRIC MAKES SENSE
 ```
 
-Untuk supply chain, jawabannya biasanya **ya di semua cabang** — makanya ini use case klasik Fabric.
+For supply chain, the answer is usually **yes at every branch** — which is why it's a classic Fabric use case.
 
-⚠️ **Tapi sadari batasnya:** blockchain menjamin *"siapa yang mengklaim apa, kapan, dan tidak bisa diubah belakangan"*. Ia **tidak** menjamin klaimnya benar. Kalau supplier input "suhu kontainer 4°C" padahal aslinya 20°C, blockchain akan menyimpan kebohongan itu dengan sangat rapi dan permanen. Ini disebut **oracle problem**, dibahas di file 07.
+⚠️ **But know its limits:** blockchain guarantees *"who claimed what, when, and that it can't be changed afterward."* It does **not** guarantee the claim is true. If a supplier enters "container temperature 4°C" when it was actually 20°C, the blockchain will store that lie neatly and permanently. This is called the **oracle problem**, covered in file 07.
 
 ---
 
-## 1.4 Komponen jaringan
+## 1.4 Network components
 
-Ada 5 hal yang perlu Anda kenal. Ini diagramnya:
+There are 5 things you need to know. Here's the diagram:
 
 ```
-```
-      ORGANISASI: Supplier                    ORGANISASI: Distributor
- ┌───────────────────────────────┐      ┌───────────────────────────────┐
- │                               │      │                               │
- │   ┌──────────┐   ┌─────────┐  │      │  ┌─────────┐   ┌──────────┐   │
- │   │  Peer 0  │   │   CA    │  │      │  │   CA    │   │  Peer 0  │   │
- │   │          │   │ kartu ID│  │      │  │ kartu ID│   │          │   │
- │   │ ┌──────┐ │   └─────────┘  │      │  └─────────┘   │ ┌──────┐ │   │
- │   │ │Chain-│ │                │      │                │ │Chain-│ │   │
- │   │ │code  │ │                │      │                │ │code  │ │   │
- │   │ └──────┘ │                │      │                │ └──────┘ │   │
- │   │ ┌──────┐ │                │      │                │ ┌──────┐ │   │
- │   │ │Ledger│ │                │      │                │ │Ledger│ │   │
- │   │ └──────┘ │                │      │                │ └──────┘ │   │
- │   └────┬─────┘                │      │                └─────┬────┘   │
- └────────┼──────────────────────┘      └──────────────────────┼────────┘
-          │                                                    │
-          └──────────────────────┬─────────────────────────────┘
+                        ┌────────────────┐
+                        │ Client App     │
+                        │ (your backend) │
+                        └────────────────┘
                                  │
-                       ┌─────────▼──────────┐
-                       │  ORDERING SERVICE  │
-                       │  (Raft, 3-5 node)  │
-                       │                    │
-                       │  Tugasnya HANYA:   │
-                       │  mengurutkan tx    │
-                       │  jadi block        │
-                       └────────────────────┘
-
-   Aplikasi client (backend Anda) bicara ke Peer untuk endorsement,
-   lalu ke Orderer untuk mengirim transaksi.
+        ┬────────────────────────┴───────────────────────┬
+        │                                                │
+    ORGANIZATION: Supplier            ORGANIZATION: Distributor
+┌─────────────────────────────┐    ┌─────────────────────────────┐
+│ ┌───────────┐ ┌───────────┐ │    │ ┌───────────┐ ┌───────────┐ │
+│ │ Peer 0    │ │ CA        │ │    │ │ CA        │ │ Peer 0    │ │
+│ │           │ │ (ID card) │ │    │ │ (ID card) │ │           │ │
+│ │ Chaincode │ └───────────┘ │    │ └───────────┘ │ Chaincode │ │
+│ │ Ledger    │               │    │               │ Ledger    │ │
+│ └───────────┘               │    │               └───────────┘ │
+└─────────────────────────────┘    └─────────────────────────────┘
+        │                                                │
+        ┴────────────────────────┬───────────────────────┴
+                                 │
+                     ┌──────────────────────┐
+                     │ ORDERING SERVICE     │
+                     │ (Raft, 3-5 nodes)    │
+                     │                      │
+                     │ Job is ONLY to:      │
+                     │ order tx into blocks │
+                     └──────────────────────┘
 ```
 
-### Penjelasan singkat
+The client application (your backend) talks to Peers for endorsement, then to the Orderer to submit the transaction. The CA is only used once, upfront, to issue identities — it doesn't sit on the transaction path.
 
-| Komponen | Analogi | Tugasnya |
+### Quick reference
+
+| Component | Analogy | Job |
 |---|---|---|
-| **Peer** | Server database milik satu org | Simpan ledger, jalankan chaincode, validasi & commit block |
-| **Orderer** | Notaris / antrean | **Hanya** menentukan urutan transaksi dan membungkusnya jadi block. Tidak tahu isi transaksi. |
-| **CA** (Certificate Authority) | Bagian HRD yang bikin kartu pegawai | Menerbitkan sertifikat X.509 untuk user & peer |
-| **Channel** | Grup WhatsApp | Ledger terpisah. Org yang tidak di channel benar-benar tidak punya datanya. |
-| **Chaincode** | Stored procedure / smart contract | Kode Go/JS yang boleh mengubah state |
-| **MSP** | Aturan "kartu pegawai mana yang sah" | Memetakan sertifikat → organisasi & role |
+| **Peer** | A database server owned by one org | Stores the ledger, runs chaincode, validates & commits blocks |
+| **Orderer** | Notary / queue | **Only** decides the order of transactions and packages them into blocks. Doesn't know what's inside them. |
+| **CA** (Certificate Authority) | The HR department that issues employee badges | Issues X.509 certificates for users & peers |
+| **Channel** | A group chat | A separate ledger. Orgs not in the channel truly have none of its data. |
+| **Chaincode** | Stored procedure / smart contract | Go/JS code allowed to change state |
+| **MSP** | The rulebook for "which badge is valid" | Maps a certificate → organization & role |
 
-> 🔑 **Orderer tidak mengeksekusi apapun.** Ia buta terhadap isi transaksi. Ini beda total dengan Ethereum di mana miner mengeksekusi kode.
+> 🔑 **The orderer executes nothing.** It's blind to transaction content. This is completely different from Ethereum, where miners execute the code.
 
 ---
 
-## 1.5 Ledger = 2 bagian (sering disalahpahami)
+## 1.5 The ledger = 2 parts (commonly misunderstood)
 
-Ini konsep yang wajib benar sejak awal.
+This concept has to be correct from day one.
 
 ```
-                         LEDGER (di setiap peer)
+                         LEDGER (on every peer)
    ┌────────────────────────────────────────────────────────────────────┐
    │                                                                    │
-   │  A) BLOCKCHAIN — file append-only, riwayat lengkap                 │
+   │  A) BLOCKCHAIN — an append-only file, the full history             │
    │                                                                    │
    │   ┌────────┐   ┌────────┐   ┌────────┐   ┌────────┐               │
    │   │Block 0 │──▶│Block 1 │──▶│Block 2 │──▶│Block 3 │──▶ ...        │
    │   │genesis │   │ tx,tx  │   │ tx,tx  │   │ tx,tx  │               │
    │   └────────┘   └────────┘   └────────┘   └────────┘               │
    │                                                                    │
-   │   • Tidak bisa diubah, tidak bisa dihapus                          │
-   │   • Tiap block punya hash block sebelumnya                         │
-   │   • Menyimpan tx VALID **dan** tx INVALID (ditandai)  ⬅ penting!  │
+   │   • Cannot be altered, cannot be deleted                           │
+   │   • Every block holds the hash of the previous block               │
+   │   • Stores VALID **and** INVALID tx (flagged)  ⬅ important!       │
    │                                                                    │
    ├────────────────────────────────────────────────────────────────────┤
    │                                                                    │
-   │  B) WORLD STATE — database key-value, kondisi TERKINI              │
+   │  B) WORLD STATE — a key-value database, the CURRENT condition      │
    │                                                                    │
    │   ┌──────────────┬──────────────────────────────────────────────┐  │
    │   │ KEY          │ VALUE (JSON)                                 │  │
@@ -164,40 +162,40 @@ Ini konsep yang wajib benar sejak awal.
    │   │ SHIPMENT-77  │ {"batches":["BATCH001"], "eta":"..."}        │  │
    │   └──────────────┴──────────────────────────────────────────────┘  │
    │                                                                    │
-   │   • Bisa di-update & dihapus (tapi riwayatnya tetap di blockchain) │
-   │   • Ini yang dibaca chaincode saat GetState()                      │
-   │   • Implementasi: LevelDB (default) atau CouchDB                   │
+   │   • Can be updated & deleted (but its history stays on the chain) │
+   │   • This is what chaincode reads via GetState()                    │
+   │   • Backing store: LevelDB (default) or CouchDB                    │
    │                                                                    │
    └────────────────────────────────────────────────────────────────────┘
 
-   Hubungan keduanya:
-   World State = hasil "memutar ulang" semua transaksi valid di blockchain.
-   Kalau world state rusak, peer bisa membangunnya ulang dari blockchain.
+   The relationship between them:
+   World State = the result of "replaying" every valid transaction on the blockchain.
+   If world state gets corrupted, a peer can rebuild it from the blockchain.
 ```
 
-### Konsekuensi praktis
+### Practical consequences
 
-- ⚠️ **"Delete" tidak menghapus riwayat.** `DelState()` hanya menghapus dari world state. Nilai lamanya tetap ada di blockchain selamanya. → Jangan pernah menyimpan data pribadi/rahasia di ledger.
-- 🔑 **Query normal membaca world state**, bukan blockchain. Cepat.
-- 🔑 **`GetHistoryForKey()`** membaca blockchain untuk melihat riwayat sebuah key. Lambat, jangan dipakai di jalur panas.
-- ⚠️ **Transaksi INVALID tetap masuk block.** Jadi "transaksi masuk block" ≠ "transaksi berhasil". Ini jebakan #1, dibahas tuntas di file 02.
+- ⚠️ **"Delete" doesn't erase history.** `DelState()` only removes the entry from world state. The old value stays on the blockchain forever. → Never store personal/secret data on the ledger.
+- 🔑 **Normal queries read world state**, not the blockchain. Fast.
+- 🔑 **`GetHistoryForKey()`** reads the blockchain to see a key's history. Slow — don't use it on a hot path.
+- ⚠️ **INVALID transactions still get written into a block.** So "transaction landed in a block" ≠ "transaction succeeded." This is trap #1, covered in full in file 02.
 
 ---
 
-## 1.6 Alur besar sebuah aplikasi Fabric
+## 1.6 The big picture: how a Fabric application flows
 
 ```
    ┌──────────────┐
    │  Frontend    │  React / mobile
    └──────┬───────┘
-          │ REST / GraphQL biasa
+          │ ordinary REST / GraphQL
    ┌──────▼───────────────────────────────────────────┐
    │  Backend App (Node.js / Go / Java)               │
    │                                                  │
    │   ┌──────────────────────────────────────┐       │
    │   │  Fabric Gateway SDK                  │       │
-   │   │  - pegang identitas (wallet)         │       │
-   │   │  - submit / evaluate transaction     │       │
+   │   │  - holds the identity (wallet)       │       │
+   │   │  - submit / evaluate transactions    │       │
    │   └───────────────┬──────────────────────┘       │
    └───────────────────┼──────────────────────────────┘
                        │ gRPC (mTLS)
@@ -205,24 +203,24 @@ Ini konsep yang wajib benar sejak awal.
               │   FABRIC NETWORK │
               └──────────────────┘
 
-   Catatan penting:
-   • Frontend TIDAK pernah bicara langsung ke Fabric.
-   • Backend Anda tetap backend biasa: auth, validasi, rate limit,
-     logging, semuanya masih tugas Anda.
-   • Fabric hanya menggantikan "layer penyimpanan yang dipercaya bersama".
+   Important notes:
+   • The frontend NEVER talks to Fabric directly.
+   • Your backend is still a normal backend: auth, validation,
+     rate limiting, logging — all still your job.
+   • Fabric only replaces the "jointly trusted storage layer".
 ```
 
-> 🚩 **Red flag saat review:** kalau AI agent menghasilkan kode yang menaruh private key user di frontend, atau membuat frontend connect langsung ke peer — tolak. Identitas Fabric dipegang backend.
+> 🚩 **Red flag when reviewing:** if an AI agent generates code that puts a user's private key in the frontend, or has the frontend connect directly to a peer — reject it. The Fabric identity belongs to the backend.
 
 ---
 
-## 1.7 Ringkasan yang harus nempel
+## 1.7 Summary worth pinning up
 
-1. Fabric = database bersama multi-organisasi dengan tanda tangan dan riwayat permanen.
-2. Tidak ada token, tidak ada gas, tidak ada mining.
-3. Ledger punya 2 bagian: **blockchain** (riwayat, permanen) + **world state** (kondisi terkini, key-value).
-4. Orderer hanya mengurutkan, tidak mengeksekusi.
-5. Channel = ledger terpisah = batas privasi paling tegas.
-6. Blockchain menjamin *klaim tidak bisa diubah*, bukan *klaim itu benar*.
+1. Fabric = a multi-organization shared database with signatures and a permanent history.
+2. No tokens, no gas, no mining.
+3. The ledger has 2 parts: the **blockchain** (history, permanent) + **world state** (current condition, key-value).
+4. The orderer only sequences transactions, it doesn't execute them.
+5. Channel = a separate ledger = the strictest privacy boundary.
+6. Blockchain guarantees a *claim can't be altered*, not that the *claim is true*.
 
-➡️ Lanjut ke **[02 — Transaction Flow](02-transaction-flow.md)**. Ini file terpenting; siapkan 90 menit.
+➡️ Continue to **[02 — Transaction Flow](02-transaction-flow.md)**. This is the most important file; set aside 90 minutes.

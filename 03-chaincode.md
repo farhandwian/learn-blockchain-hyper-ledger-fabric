@@ -1,30 +1,30 @@
-# 03 — Chaincode: State, Key, Query, Event
+# 03 — Chaincode: State, Keys, Queries, Events
 
-> Target: Anda tidak perlu bisa menulis chaincode dari nol, tapi harus bisa **membaca** chaincode dan menemukan yang salah.
+> Goal: you don't need to be able to write chaincode from scratch, but you must be able to **read** chaincode and spot what's wrong with it.
 
 ---
 
-## 3.1 Anatomi chaincode
+## 3.1 Chaincode anatomy
 
-Chaincode itu program biasa. Tidak ada bahasa khusus. Strukturnya:
+Chaincode is just an ordinary program. No special-purpose language. Its structure:
 
 ```
    ┌───────────────────────────────────────────────────────────┐
-   │  CHAINCODE (satu package, di-deploy ke channel)           │
+   │  CHAINCODE (one package, deployed to a channel)           │
    │                                                           │
    │   ┌─────────────────────────────────────────────────┐     │
    │   │  Contract: "BatchContract"                      │     │
    │   │                                                 │     │
    │   │   func CreateBatch(ctx, id, qty)   ──┐          │     │
-   │   │   func TransferBatch(ctx, id, to)    │ dipanggil│     │
-   │   │   func ReadBatch(ctx, id)            │ dari luar│     │
-   │   │   func QueryByOwner(ctx, owner)    ──┘          │     │
+   │   │   func TransferBatch(ctx, id, to)    │ called   │     │
+   │   │   func ReadBatch(ctx, id)            │ from     │     │
+   │   │   func QueryByOwner(ctx, owner)    ──┘ outside  │     │
    │   └─────────────────────────────────────────────────┘     │
    │                          │                                │
    │                          │ ctx.GetStub()                  │
    │                          ▼                                │
    │   ┌─────────────────────────────────────────────────┐     │
-   │   │  STUB — satu-satunya pintu ke ledger            │     │
+   │   │  STUB — the one and only door to the ledger      │     │
    │   │   GetState / PutState / DelState                │     │
    │   │   GetStateByRange / GetQueryResult              │     │
    │   │   CreateCompositeKey / SetEvent / GetTxID ...   │     │
@@ -32,13 +32,13 @@ Chaincode itu program biasa. Tidak ada bahasa khusus. Strukturnya:
    └───────────────────────────────────────────────────────────┘
 ```
 
-> 🔑 **Semua yang menyentuh ledger lewat stub.** Kalau ada kode di chaincode yang mengakses sesuatu di luar stub (file, network, jam), itu langsung mencurigakan (lihat 02.6).
+> 🔑 **Everything that touches the ledger goes through the stub.** If there's chaincode that reaches outside the stub for anything (a file, the network, the clock), that's immediately suspicious (see 02.6).
 
 ---
 
-## 3.2 Contoh chaincode minimal (Go)
+## 3.2 A minimal chaincode example (Go)
 
-Baca ini pelan-pelan. Semua chaincode Fabric bentuknya mirip ini.
+Read this slowly. Nearly all Fabric chaincode has this same shape.
 
 ```go
 type SmartContract struct {
@@ -48,8 +48,8 @@ type SmartContract struct {
 type Batch struct {
     ID        string `json:"id"`
     Product   string `json:"product"`
-    Qty       int    `json:"qty"`      // integer, bukan float
-    Owner     string `json:"owner"`    // MSP ID pemilik
+    Qty       int    `json:"qty"`      // integer, not float
+    Owner     string `json:"owner"`    // owning MSP ID
     Status    string `json:"status"`
     UpdatedAt string `json:"updatedAt"`
 }
@@ -57,33 +57,33 @@ type Batch struct {
 func (s *SmartContract) CreateBatch(ctx contractapi.TransactionContextInterface,
     id string, product string, qty int) error {
 
-    // 1) VALIDASI INPUT
+    // 1) VALIDATE INPUT
     if id == "" || product == "" {
-        return fmt.Errorf("id dan product wajib diisi")
+        return fmt.Errorf("id and product are required")
     }
     if qty <= 0 {
-        return fmt.Errorf("qty harus > 0, dapat %d", qty)
+        return fmt.Errorf("qty must be > 0, got %d", qty)
     }
 
-    // 2) CEK IDENTITAS PEMANGGIL  ← sering dilupakan AI!
+    // 2) CHECK CALLER IDENTITY  ← the thing AI most often forgets!
     mspID, err := ctx.GetClientIdentity().GetMSPID()
     if err != nil {
         return err
     }
     if mspID != "SupplierMSP" {
-        return fmt.Errorf("hanya Supplier yang boleh membuat batch, bukan %s", mspID)
+        return fmt.Errorf("only the Supplier may create a batch, not %s", mspID)
     }
 
-    // 3) CEK BELUM ADA (idempotency / cegah timpa)
+    // 3) CHECK IT DOESN'T EXIST YET (idempotency / prevent overwrite)
     existing, err := ctx.GetStub().GetState(id)
     if err != nil {
-        return fmt.Errorf("gagal baca state: %v", err)
+        return fmt.Errorf("failed to read state: %v", err)
     }
     if existing != nil {
-        return fmt.Errorf("batch %s sudah ada", id)
+        return fmt.Errorf("batch %s already exists", id)
     }
 
-    // 4) WAKTU DETERMINISTIK
+    // 4) DETERMINISTIC TIME
     ts, err := ctx.GetStub().GetTxTimestamp()
     if err != nil {
         return err
@@ -100,75 +100,75 @@ func (s *SmartContract) CreateBatch(ctx contractapi.TransactionContextInterface,
         return err
     }
 
-    // 5) TULIS
+    // 5) WRITE
     if err := ctx.GetStub().PutState(id, b); err != nil {
         return err
     }
 
-    // 6) EMIT EVENT untuk konsumen off-chain
+    // 6) EMIT AN EVENT for off-chain consumers
     return ctx.GetStub().SetEvent("BatchCreated", b)
 }
 ```
 
-### 6 langkah di atas adalah template review Anda
+### These 6 steps are your review template
 
 ```
    ┌───┬──────────────────────────────┬────────────────────────────────┐
-   │ # │ Langkah                      │ Kalau tidak ada?               │
+   │ # │ Step                         │ What if it's missing?          │
    ├───┼──────────────────────────────┼────────────────────────────────┤
-   │ 1 │ Validasi input               │ Data sampah masuk ledger       │
-   │   │                              │ PERMANEN. Tidak bisa dihapus.  │
-   │ 2 │ Cek identitas pemanggil      │ 🚨 Siapapun bisa apapun        │
-   │ 3 │ Cek pre-condition state      │ Overwrite diam-diam, atau      │
-   │   │                              │ transisi status ilegal         │
-   │ 4 │ Waktu via GetTxTimestamp     │ Non-determinisme               │
-   │ 5 │ PutState sekali di akhir     │ (lihat 02.7)                   │
-   │ 6 │ SetEvent                     │ Sistem off-chain tidak tahu    │
-   │   │                              │ ada perubahan                  │
+   │ 1 │ Validate input               │ Garbage data enters the ledger │
+   │   │                              │ PERMANENTLY. Can't be deleted. │
+   │ 2 │ Check caller identity        │ 🚨 Anyone can do anything      │
+   │ 3 │ Check the state precondition │ Silent overwrite, or an        │
+   │   │                              │ illegal status transition      │
+   │ 4 │ Time via GetTxTimestamp      │ Non-determinism                │
+   │ 5 │ PutState once, at the end    │ (see 02.7)                     │
+   │ 6 │ SetEvent                     │ Off-chain systems never learn  │
+   │   │                              │ about the change               │
    └───┴──────────────────────────────┴────────────────────────────────┘
 ```
 
-🚩 **Langkah 2 adalah yang paling sering hilang dari kode buatan AI.** Fabric hanya memastikan *identitas pemanggil valid*; ia sama sekali tidak tahu aturan bisnis "hanya supplier boleh create". Itu harus Anda tulis.
+🚩 **Step 2 is the one most often missing from AI-generated code.** Fabric only guarantees that *the caller's identity is valid*; it has no idea about your business rule of "only the supplier may create." You have to write that yourself.
 
 ---
 
-## 3.3 API stub yang perlu Anda kenal
+## 3.3 Stub API you need to know
 
-| Fungsi | Gunanya | Catatan |
+| Function | Purpose | Note |
 |---|---|---|
-| `GetState(key)` | baca satu key | masuk read-set |
-| `PutState(key, val)` | tulis satu key | masuk write-set |
-| `DelState(key)` | hapus dari world state | riwayat tetap di blockchain |
-| `GetStateByRange(start, end)` | ambil rentang key | ⚠️ phantom read |
-| `CreateCompositeKey(prefix, attrs)` | bikin key terstruktur | lihat 3.4 |
-| `GetStateByPartialCompositeKey` | query berdasarkan prefix | ⚠️ phantom read |
-| `GetQueryResult(query)` | rich query JSON | **CouchDB saja**, ⚠️ phantom read |
-| `GetHistoryForKey(key)` | riwayat perubahan sebuah key | lambat, read-only |
-| `GetTxTimestamp()` | waktu (deterministik) | ✅ pakai ini |
-| `GetTxID()` | ID transaksi (deterministik) | ✅ boleh untuk ID unik |
-| `SetEvent(name, payload)` | emit event | **1 event per transaksi**, yang terakhir menang |
-| `GetPrivateData(coll, key)` | baca private data | lihat file 04 |
-| `InvokeChaincode(name, args, ch)` | panggil chaincode lain | hati-hati, lihat 3.8 |
+| `GetState(key)` | read one key | goes into the read-set |
+| `PutState(key, val)` | write one key | goes into the write-set |
+| `DelState(key)` | remove from world state | history stays on the blockchain |
+| `GetStateByRange(start, end)` | fetch a range of keys | ⚠️ phantom read |
+| `CreateCompositeKey(prefix, attrs)` | build a structured key | see 3.4 |
+| `GetStateByPartialCompositeKey` | query by prefix | ⚠️ phantom read |
+| `GetQueryResult(query)` | JSON rich query | **CouchDB only**, ⚠️ phantom read |
+| `GetHistoryForKey(key)` | change history of a key | slow, read-only |
+| `GetTxTimestamp()` | time (deterministic) | ✅ use this |
+| `GetTxID()` | transaction ID (deterministic) | ✅ fine for a unique ID |
+| `SetEvent(name, payload)` | emit an event | **1 event per transaction**, last one wins |
+| `GetPrivateData(coll, key)` | read private data | see file 04 |
+| `InvokeChaincode(name, args, ch)` | call another chaincode | careful, see 3.8 |
 
-⚠️ `SetEvent` hanya boleh sekali per transaksi. Kalau dipanggil dua kali, yang pertama hilang tanpa error.
+⚠️ `SetEvent` may only be called once per transaction. If called twice, the first call silently disappears — no error.
 
 ---
 
-## 3.4 Desain key — ini keputusan arsitektur, bukan detail
+## 3.4 Key design — an architectural decision, not a detail
 
-World state adalah key-value. Tidak ada tabel, tidak ada JOIN, tidak ada index otomatis. **Desain key = desain query Anda.**
+World state is key-value. There are no tables, no JOINs, no automatic indexes. **Key design = query design.**
 
-### Composite key
+### Composite keys
 
 ```
    CreateCompositeKey("owner~batch", ["DIST1", "BATCH007"])
                           │              │        │
                        objectType     attr 1   attr 2
 
-   Menghasilkan key (secara internal):
+   Produces (internally):
    \x00owner~batch\x00DIST1\x00BATCH007\x00
 
-   Efeknya: key ter-URUT secara leksikografis, jadi bisa di-scan per prefix:
+   Effect: keys are sorted lexicographically, so they can be scanned by prefix:
 
    \x00owner~batch\x00DIST1\x00BATCH003\x00   ┐
    \x00owner~batch\x00DIST1\x00BATCH007\x00   ├─ GetStateByPartialCompositeKey
@@ -176,49 +176,49 @@ World state adalah key-value. Tidak ada tabel, tidak ada JOIN, tidak ada index o
    \x00owner~batch\x00DIST2\x00BATCH001\x00
 ```
 
-### Pola umum: index buatan sendiri
+### A common pattern: hand-rolled indexes
 
 ```
    ┌───────────────────────────────────────────────────────────┐
-   │  DATA UTAMA                                               │
-   │    BATCH007  →  {"product":"Kopi","owner":"DIST1", ...}   │
+   │  MAIN DATA                                                │
+   │    BATCH007  →  {"product":"Coffee","owner":"DIST1", ...} │
    │                                                           │
-   │  INDEX (value kosong, key-nya yang penting)               │
+   │  INDEX (empty value, the KEY is what matters)             │
    │    owner~batch : DIST1 : BATCH007   →  0x00               │
    │    status~batch: SHIPPED: BATCH007  →  0x00               │
    └───────────────────────────────────────────────────────────┘
 
-   ⚠️ Index ini TIDAK otomatis. Chaincode harus:
-      - membuat entri index saat create
-      - MENGHAPUS index lama & membuat yang baru saat update
+   ⚠️ This index is NOT automatic. The chaincode must:
+      - create the index entry on create
+      - DELETE the old index entry & create a new one on update
 ```
 
-🚩 **Red flag klasik:** chaincode mengubah `owner` dari DIST1 ke DIST2 tapi lupa `DelState` index lama. Hasilnya query "batch milik DIST1" tetap mengembalikan batch yang sudah pindah. Cari pola: setiap field yang diindeks, apakah ada `DelState(indexLama)` di jalur update?
+🚩 **Classic red flag:** chaincode changes `owner` from DIST1 to DIST2 but forgets to `DelState` the old index entry. The result: a query for "batches owned by DIST1" still returns a batch that has already moved on. Look for this: for every indexed field, is there a `DelState(oldIndex)` on the update path?
 
 ---
 
 ## 3.5 LevelDB vs CouchDB
 
-Keputusan ini dibuat saat setup jaringan dan **sulit diubah belakangan**.
+This decision is made when the network is set up and is **hard to change later**.
 
 ```
    ┌────────────────────────┬────────────────────────────────────┐
    │  LevelDB (default)     │  CouchDB                           │
    ├────────────────────────┼────────────────────────────────────┤
-   │  Key-value murni       │  Document store (JSON)             │
-   │  Query: hanya by key   │  Query: rich query (Mongo-like)    │
+   │  Pure key-value        │  Document store (JSON)             │
+   │  Query: by key only    │  Query: rich queries (Mongo-like)  │
    │         & range        │         WHERE status=X AND owner=Y │
-   │  Cepat                 │  2-4x lebih lambat                 │
-   │  Embedded, no ops      │  Container terpisah, perlu di-ops  │
-   │  Value boleh apa saja  │  Value HARUS JSON valid            │
+   │  Fast                  │  2-4x slower                        │
+   │  Embedded, zero ops    │  A separate container to operate    │
+   │  Value can be anything │  Value MUST be valid JSON           │
    └────────────────────────┴────────────────────────────────────┘
 ```
 
-### ⚠️ Kalau pilih CouchDB: INDEX WAJIB
+### ⚠️ If you choose CouchDB: an INDEX is MANDATORY
 
-Rich query tanpa index akan melakukan **full scan**. Di dev dengan 100 record, cepat. Di produksi dengan 5 juta record, timeout.
+A rich query with no index does a **full scan**. Fine with 100 records in dev. A timeout with 5 million records in production.
 
-Index dideklarasikan sebagai file JSON di dalam package chaincode:
+Indexes are declared as JSON files inside the chaincode package:
 
 ```
   chaincode/
@@ -238,98 +238,98 @@ Index dideklarasikan sebagai file JSON di dalam package chaincode:
 }
 ```
 
-🚩 **Red flag saat review:** ada `GetQueryResult` di chaincode tapi tidak ada folder `META-INF/statedb/couchdb/indexes/`. Ini bom waktu performa.
+🚩 **Red flag when reviewing:** `GetQueryResult` shows up in the chaincode but there's no `META-INF/statedb/couchdb/indexes/` folder. That's a performance time bomb.
 
-🧪 **Tes:** isi 100.000 record, ukur latency rich query. Kalau > 1 detik, index-nya salah atau tidak terpakai.
+🧪 **Test:** load 100,000 records and measure rich-query latency. If it's over 1 second, the index is wrong or unused.
 
 ---
 
-## 3.6 Event — jembatan ke dunia off-chain
+## 3.6 Events — the bridge to the off-chain world
 
-Ini pola arsitektur yang **hampir pasti Anda butuhkan** di aplikasi supply chain.
+This is an architecture pattern you will **almost certainly need** in a supply-chain application.
 
 ```
    ┌──────────────┐
    │  CHAINCODE   │  SetEvent("BatchShipped", payload)
    └──────┬───────┘
-          │ (event ikut masuk block, terkirim saat commit VALID)
+          │ (the event rides along in the block, delivered on a VALID commit)
           ▼
    ┌────────────────────────────────────────────────────────┐
-   │  LISTENER (service Node.js/Go milik Anda)              │
+   │  LISTENER (your own Node.js/Go service)                │
    │                                                        │
-   │    - subscribe block/chaincode event                   │
-   │    - SIMPAN nomor block terakhir yang diproses         │
-   │      (checkpoint) → agar bisa resume setelah restart   │
+   │    - subscribes to block/chaincode events               │
+   │    - SAVES the last processed block number              │
+   │      (a checkpoint) → so it can resume after a restart  │
    └───────────┬────────────────────────────────────────────┘
                │
      ┌─────────┼──────────┬──────────────┐
      ▼         ▼          ▼              ▼
  ┌────────┐ ┌──────┐  ┌────────┐   ┌──────────┐
- │Postgres│ │Elastic│ │ Kafka  │   │ Notifikasi│
- │(report)│ │(cari) │ │(integr)│   │ (email/WA)│
+ │Postgres│ │Elastic│ │ Kafka  │   │Notifications│
+ │(reports)│(search)│(integr.)│   │(email/WA) │
  └────────┘ └──────┘  └────────┘   └──────────┘
 
-   Semua reporting, dashboard, pencarian → dari sini.
-   JANGAN bikin dashboard yang query langsung ke ledger.
+   All reporting, dashboards, search → come from here.
+   DON'T build a dashboard that queries the ledger directly.
 ```
 
-Kenapa penting:
-- Query ledger lambat dan tidak cocok untuk agregasi.
-- Off-chain DB bisa di-index, di-join, di-cache sesuka hati.
-- Ledger tetap jadi sumber kebenaran; off-chain DB bisa dibangun ulang dari block 0 kapan saja.
+Why this matters:
+- Ledger queries are slow and a poor fit for aggregation.
+- An off-chain DB can be indexed, joined, and cached however you like.
+- The ledger stays the source of truth; the off-chain DB can be rebuilt from block 0 at any time.
 
-🚩 Red flag: listener event tanpa **checkpoint**. Kalau service restart, event yang lewat hilang selamanya dan data off-chain jadi tidak sinkron.
+🚩 Red flag: an event listener with no **checkpoint**. If the service restarts, any events that passed by are lost forever and the off-chain data drifts out of sync.
 
-⚠️ Event hanya terkirim untuk transaksi **VALID**. Ini justru bagus — Anda tidak perlu memfilter sendiri.
+⚠️ Events are only delivered for **VALID** transactions. That's actually a feature — you don't need to filter them yourself.
 
 ---
 
-## 3.7 Kesalahan menyimpan angka
+## 3.7 The mistake of storing numbers wrong
 
 ```go
-// ⛔ float — pembulatan bisa beda antar platform/versi
+// ⛔ float — rounding can differ across platforms/versions
 type Item struct { Price float64 }
 
-// ✅ integer dalam satuan terkecil
-type Item struct { PriceCents int64 }   // Rp 15.000,50 → 1500050
+// ✅ integer, in the smallest unit
+type Item struct { PriceCents int64 }   // $150.005 → 15000.5 cents, use an integer-safe unit
 ```
 
-Ini masalah nyata di supply chain (harga, berat, volume). Aturannya sama seperti sistem keuangan: **jangan pernah float untuk uang atau kuantitas yang harus persis.**
+This is a real problem in supply chain (price, weight, volume). The rule is the same as in financial systems: **never use floats for money or quantities that must be exact.**
 
 ---
 
-## 3.8 Hal lain yang sering salah
+## 3.8 Other things that often go wrong
 
-| Anti-pattern | Kenapa buruk |
+| Anti-pattern | Why it's bad |
 |---|---|
-| `return nil` saat kondisi gagal | Transaksi tercatat VALID padahal tidak melakukan apa-apa. Error harus dikembalikan sebagai error. |
-| Menyimpan seluruh array dalam 1 key | Hot key + ukuran value membengkak + MVCC conflict |
-| Value > beberapa ratus KB | Block jadi besar, replikasi lambat. Simpan hash, file di off-chain. |
-| `InvokeChaincode` lintas channel lalu menulis | Read-set dari channel lain **tidak** divalidasi. Hanya aman untuk read. |
-| Logika bisnis di client, chaincode cuma CRUD | Client bisa dimodifikasi. Aturan yang mengikat semua pihak HARUS di chaincode. |
-| Tidak ada `docType` di JSON | Rich query jadi susah membedakan jenis dokumen |
-| Nama fungsi tidak konsisten dengan yang dipanggil client | Error "function not found" saat runtime |
+| `return nil` on a failure condition | The transaction gets recorded as VALID even though it did nothing. Errors must be returned as errors. |
+| Storing an entire array in 1 key | Hot key + value size bloat + MVCC conflicts |
+| Values > a few hundred KB | Blocks get big, replication slows down. Store a hash, keep the file off-chain. |
+| `InvokeChaincode` across channels, then writing | The read-set from the other channel is **not** validated. Only safe for reads. |
+| Business logic in the client, chaincode is just CRUD | The client can be modified. Rules that bind all parties MUST live in chaincode. |
+| No `docType` in the JSON | Rich queries struggle to distinguish document types |
+| Function name doesn't match what the client calls | "function not found" error at runtime |
 
-> 🔑 Poin **"logika bisnis di client"** paling penting secara konseptual. Pertanyaan uji: *"Kalau salah satu organisasi memodifikasi aplikasi client mereka, apakah mereka bisa melanggar aturan bisnis?"* Kalau ya, aturannya salah tempat.
+> 🔑 The **"business logic in the client"** point is the most conceptually important. The test question: *"If one organization modifies their own client application, could they break a business rule?"* If yes, the rule is in the wrong place.
 
 ---
 
-## 3.9 Checklist review chaincode
+## 3.9 Chaincode review checklist
 
 ```
-  [ ] Tidak ada time.Now / rand / http / getenv / iterasi map
-  [ ] Setiap fungsi write mengecek MSP ID atau atribut pemanggil
-  [ ] Validasi semua input (kosong, negatif, format, panjang)
-  [ ] Cek eksistensi sebelum create; cek status sebelum transisi
-  [ ] Transisi status mengikuti state machine yang disepakati
-  [ ] Tidak ada PutState lalu GetState pada key yang sama
-  [ ] Query tidak dipakai untuk memutuskan write
-  [ ] Index composite key di-update DAN dihapus saat data berubah
-  [ ] Ada META-INF/statedb/couchdb/indexes kalau pakai rich query
-  [ ] Angka penting pakai integer, bukan float
-  [ ] Error dikembalikan sebagai error, bukan return diam-diam
-  [ ] Ada SetEvent untuk setiap perubahan penting (maks 1 per tx)
-  [ ] Tidak ada data pribadi / file besar disimpan di state
+  [ ] No time.Now / rand / http / getenv / map iteration
+  [ ] Every write function checks the caller's MSP ID or attributes
+  [ ] All inputs are validated (empty, negative, format, length)
+  [ ] Existence checked before create; status checked before transition
+  [ ] Status transitions follow the agreed state machine
+  [ ] No PutState followed by GetState on the same key
+  [ ] Queries are never used to decide a write
+  [ ] Composite-key indexes are updated AND deleted when data changes
+  [ ] META-INF/statedb/couchdb/indexes exists if rich queries are used
+  [ ] Important numbers use integers, not floats
+  [ ] Errors are returned as errors, never a silent return
+  [ ] SetEvent for every meaningful change (max 1 per tx)
+  [ ] No personal data / large files stored in state
 ```
 
-➡️ Lanjut ke **[04 — Privasi Data](04-privasi-data.md)**.
+➡️ Continue to **[04 — Data Privacy](04-data-privacy.md)**.
