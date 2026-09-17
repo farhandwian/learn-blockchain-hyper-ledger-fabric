@@ -2,6 +2,8 @@
 
 This material is written for a **software engineer who has never touched blockchain before**, whose job will **not be writing chaincode from scratch**, but rather **designing, testing, and validating** a supply-chain application built on Hyperledger Fabric.
 
+> ⚡ **In a hurry, or mostly delegating the coding to an AI agent?** Read **[quick/README.md](quick/README.md)** instead — a ~10 minute condensed version of everything below, plus a ready-to-paste `CLAUDE.md` block. This full version is the deep-dive reference for when you want to actually understand *why*.
+
 That's why this differs from a typical tutorial:
 
 | Typical tutorial | This material |
